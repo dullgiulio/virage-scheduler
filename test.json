@@ -1,0 +1,66 @@
+{
+    "name": "scenario0",
+    "type": "scenario",
+    "awaits": ["step0", "step1"],
+    "completes": ["scenario0"],
+    "data": {
+        "meta": "data"
+    },
+    "children": [{
+        "name": "step0",
+        "type": "step",
+        "awaits": ["step0/vm0", "step0/vm1"],
+        "completes": ["step0"],
+        "children": [
+            {
+                "name": "step0/vm0",
+                "type": "vm",
+                "awaits": ["step0/vm1"],
+                "completes": ["step0/vm0"],
+                "data": {
+                    "meta": "data"
+                }
+            },
+            {
+                "name": "step0/vm1",
+                "type": "vm",
+                "completes": ["step0/vm1"],
+                "awaits": [],
+                "data": {
+                    "meta": "data"
+                }
+            }
+        ]
+    },
+    {
+        "name": "step1",
+        "type": "step",
+        "awaits": ["step0", "step1/vm0", "step1/vm1"],
+        "completes": ["step1"],
+        "data": {
+            "comment": "dependency on previous step should be auto-added"
+        },
+        "children": [
+            {
+                "name": "step1/vm0",
+                "type": "vm",
+                "awaits": ["step1/vm1"],
+                "completes": ["step1/vm0"],
+                "data": {
+                    "meta": "data"
+                }
+            },
+            {
+                "name": "step1/vm1",
+                "type": "vm",
+                "completes": ["step1/vm1"],
+                "awaits": ["step0"],
+                "comment": "must await for step0 (inherit it after parsing)",
+                "data": {
+                    "meta": "data"
+                }
+            }
+        ]
+    }
+    ]
+}
