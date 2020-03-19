@@ -7,14 +7,59 @@ import (
 	"strings"
 )
 
+type objType string
+
+const (
+	objTypeVM  objType = "vm"
+	objTypeVPN objType = "vpn"
+)
+
+type vmJSON struct {
+	Setup    []string `json:"setup"`
+	Teardown []string `json:"teardown"`
+}
+
+type vpnJSON struct {
+	Setup    []string `json:"setup"`
+	Teardown []string `json:"teardown"`
+}
+
 type ObjectJSON struct {
-	Type      string   `json:"type"`
-	Name      string   `json:"name"`
-	Awaits    []string `json:"awaits"`
-	Completes []string `json:"completes"`
-	//Data     json.RawMessage `json:"data"`
-	Data     map[string]string `json:"data"`
-	Children []ObjectJSON      `json:"children"`
+	Type      objType         `json:"type"`
+	Name      string          `json:"name"`
+	Awaits    []string        `json:"awaits"`
+	Completes []string        `json:"completes"`
+	Data      json.RawMessage `json:"data"`
+	typeAttrs interface{}     // TODO: define interface
+	Children  []ObjectJSON    `json:"children"`
+}
+
+func (o *ObjectJSON) makeTypeAttrs(t objType) (interface{}, error) {
+	switch t {
+	case objTypeVM:
+		return &vmJSON{}, nil
+	case objTypeVPN:
+		return &vpnJSON{}, nil
+	default:
+		return nil, fmt.Errorf("unknown object type %s", t)
+	}
+}
+
+func (o *ObjectJSON) resolveTypeAttrs() error {
+	for i := range o.Children {
+		if err := o.Children[i].resolveTypeAttrs(); err != nil {
+			return err
+		}
+	}
+	if o.Data == nil {
+		return nil
+	}
+	var err error
+	o.typeAttrs, err = o.makeTypeAttrs(o.Type)
+	if err = json.Unmarshal(o.Data, o.typeAttrs); err != nil {
+		return fmt.Errorf("cannot parse data attributes: %w", err)
+	}
+	return nil
 }
 
 func parseJSON(r io.Reader) (*ObjectJSON, error) {
@@ -23,12 +68,13 @@ func parseJSON(r io.Reader) (*ObjectJSON, error) {
 	if err := d.Decode(&o); err != nil {
 		return nil, fmt.Errorf("cannot decode to object: %w", err)
 	}
+	o.resolveTypeAttrs()
 	return &o, nil
 }
 
 type nametype struct {
 	name  string
-	otype string
+	otype objType
 }
 
 type parser struct {
@@ -47,7 +93,7 @@ func newParser() *parser {
 	}
 }
 
-func (p *parser) makeFuture(name, otype string) *future {
+func (p *parser) makeFuture(name string, otype objType) *future {
 	f, exists := p.futures[name]
 	if exists {
 		if _, ok := p.unresolvedFuts[name]; ok {
