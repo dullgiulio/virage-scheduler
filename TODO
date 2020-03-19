@@ -1,0 +1,4 @@
+* parallelism and execute real commands
+* cleanup executed as stack of commands
+* event logging for status propagation
+* automatic injection of futures in scenario description
