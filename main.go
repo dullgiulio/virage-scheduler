@@ -22,6 +22,7 @@ func initLogging(debug bool) {
 }
 
 func main() {
+	initLogging(true)
 	parser := newParser()
 	objs, err := parser.parse(os.Stdin)
 	if err != nil {

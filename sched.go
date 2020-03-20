@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"sync"
 )
 
@@ -69,6 +69,7 @@ func (s objectStatus) consumed() bool {
 type object struct {
 	name      string
 	status    objectStatus
+	lifecycle lifecycle
 	awaits    []fawait
 	completes []fcomplete
 }
@@ -79,9 +80,14 @@ func (o *object) String() string {
 
 func (o *object) create() error {
 	o.status = objectStatusRunning
-	// TODO wait
+	if o.lifecycle != nil {
+		setup := o.lifecycle.setup()
+		if err := setup.run(); err != nil {
+			o.status = objectStatusCreated
+			return fmt.Errorf("cannot run startup command: %w", err)
+		}
+	}
 	o.status = objectStatusCreated
-	//return errors.New("failed")
 	return nil
 }
 
@@ -137,21 +143,22 @@ func (s *scheduler) run(objs []*object) {
 		for _, o := range objs {
 			if err := o.failedDeps(); err != nil {
 				s.cascade(o, err)
-				log.Printf("not creating %s", o)
+				dlog.Printf("not creating %s", o)
 				worked = true
 				continue
 			}
 			if o.ready() {
+				dlog.Printf("creating %s", o.name)
 				if err := s.create(o); err != nil {
-					log.Printf("creation of %s failed: %v", o, err)
+					elog.Printf("creation of %s failed: %v", o, err)
 				} else {
-					log.Printf("created %s", o)
+					dlog.Printf("created %s", o)
 				}
 				worked = true
 			}
 		}
 		if !worked {
-			log.Printf("nothing left to do")
+			ilog.Printf("nothing left to do")
 			return
 		}
 	}

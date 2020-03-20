@@ -19,9 +19,25 @@ type vmJSON struct {
 	Teardown []string `json:"teardown"`
 }
 
+func (v *vmJSON) setup() *executor {
+	return newExecutor(v.Setup)
+}
+
+func (v *vmJSON) teardown() *executor {
+	return newExecutor(v.Teardown)
+}
+
 type vpnJSON struct {
 	Setup    []string `json:"setup"`
 	Teardown []string `json:"teardown"`
+}
+
+func (v *vpnJSON) setup() *executor {
+	return newExecutor(v.Setup)
+}
+
+func (v *vpnJSON) teardown() *executor {
+	return newExecutor(v.Teardown)
 }
 
 type ObjectJSON struct {
@@ -30,8 +46,8 @@ type ObjectJSON struct {
 	Awaits    []string        `json:"awaits"`
 	Completes []string        `json:"completes"`
 	Data      json.RawMessage `json:"data"`
-	typeAttrs interface{}     // TODO: define interface
-	Children  []ObjectJSON    `json:"children"`
+	typeAttrs interface{}
+	Children  []ObjectJSON `json:"children"`
 }
 
 func (o *ObjectJSON) makeTypeAttrs(t objType) (interface{}, error) {
@@ -127,7 +143,14 @@ func (p *parser) hasDuplicatedFutures() bool {
 }
 
 func (p *parser) convert(jo *ObjectJSON) {
-	obj := &object{name: jo.Name}
+	var lc lifecycle
+	if jo.typeAttrs != nil {
+		lc, _ = jo.typeAttrs.(lifecycle)
+	}
+	obj := &object{
+		name:      jo.Name,
+		lifecycle: lc,
+	}
 	for _, fname := range jo.Completes {
 		f := p.makeFuture(fname, jo.Type)
 		obj.completes = append(obj.completes, f)
