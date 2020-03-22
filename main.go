@@ -29,6 +29,6 @@ func main() {
 		elog.Printf("error: cannot accept scenario: %v", err)
 		return
 	}
-	s := &scheduler{}
+	s := newScheduler(2)
 	s.run(objs)
 }

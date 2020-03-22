@@ -116,7 +116,28 @@ func (o *object) ready() bool {
 	return true
 }
 
-type scheduler struct{}
+type scheduler struct {
+	fns chan func()
+	wg  sync.WaitGroup
+}
+
+func newScheduler(nworkers int) *scheduler {
+	s := scheduler{
+		fns: make(chan func(), nworkers),
+	}
+	s.wg.Add(nworkers)
+	for i := 0; i < nworkers; i++ {
+		go s.runWorker()
+	}
+	return &s
+}
+
+func (s *scheduler) runWorker() {
+	for fn := range s.fns {
+		fn()
+	}
+	s.wg.Done()
+}
 
 func (s *scheduler) cascade(o *object, err error) {
 	for i := range o.completes {
@@ -139,7 +160,10 @@ func (s *scheduler) create(o *object) error {
 
 func (s *scheduler) run(objs []*object) {
 	for {
-		var worked bool
+		var (
+			worked bool
+			wg     sync.WaitGroup
+		)
 		for _, o := range objs {
 			if err := o.failedDeps(); err != nil {
 				s.cascade(o, err)
@@ -148,18 +172,26 @@ func (s *scheduler) run(objs []*object) {
 				continue
 			}
 			if o.ready() {
-				dlog.Printf("creating %s", o.name)
-				if err := s.create(o); err != nil {
-					elog.Printf("creation of %s failed: %v", o, err)
-				} else {
-					dlog.Printf("created %s", o)
-				}
 				worked = true
+				wg.Add(1)
+				obj := o
+				s.fns <- func() {
+					dlog.Printf("creating %s", obj.name)
+					if err := s.create(obj); err != nil {
+						elog.Printf("creation of %s failed: %v", obj, err)
+					} else {
+						dlog.Printf("created %s", obj)
+					}
+					wg.Done()
+				}
 			}
 		}
 		if !worked {
 			ilog.Printf("nothing left to do")
-			return
+			break
 		}
+		wg.Wait()
 	}
+	close(s.fns)
+	s.wg.Wait()
 }
